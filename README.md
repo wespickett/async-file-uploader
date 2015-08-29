@@ -1,4 +1,4 @@
-# Real time chat app
+# Async file uploader
 
 Async file uploader using nodejs and socket.io and aurelia.io.
 
