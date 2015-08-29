@@ -1,0 +1,23 @@
+<template>
+    <ul>
+        <li repeat.for="message of createFloorPlanMessages">
+            ${message}
+        </li>
+    </ul>
+
+    ${floorPlansMap.size}
+    ${loadingFloorPlanFiles.size}
+    <div repeat.for="[id, floorPlan] of floorPlansMap" style="border:solid 1px #000">
+        --Floor Plan: ${floorPlan.displayName}
+        <div repeat.for="file of floorPlan.files">
+            ${file.url}
+            <img src.bind="file.thumbnail100" width="100" height="100" />
+        </div>
+    </div>
+
+    <form>
+        <input type="text" name="displayName" value.bind="displayName" />
+        <input ref="floorPlanFile" type="file" name="floorplan" value.bind="newFloorPlan" />
+        <button id="send">Add+</button>
+    </form>
+</template>
