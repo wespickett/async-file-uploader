@@ -2,10 +2,9 @@ var express = require('express'),
     app = express(),
     http = require('http'),
     server = http.Server(app),
-    //querystring = require('querystring'),
+    mysql = require('mysql'),
 
     socketIOModule = require('socket.io'),
-    //socketIO = socketIOModule(http),
     socketIO = socketIOModule.listen(5001),
 
     dl  = require('delivery'),
@@ -14,19 +13,24 @@ var express = require('express'),
     events = require('events'),
     pipelineEmitter = new events.EventEmitter(),
 
-    floorPlanManager = require('./floorPlanManager')(),
+    floorPlanManagerModule = require('./floorPlanManager'),
+    projectManagerModule = require('./projectManager'),
     thumbnailGenerator = require('./thumbnailGenerator')(),
 
     FLOORPLAN_FILES_PATH = 'floorPlanFiles/';
 
+//connect mysql
+var dbConnection = mysql.createConnection({
+  host     : '127.0.0.1',
+  user     : 'root',
+  password : 'password',
+  database : 'fieldwire'
+});
+dbConnection.connect();
 
-// chatManager = ChatManager(xmppClient);
-// dbManager = DbManager(chatManager.handleMessage);
-// permissionManager = PermissionManager(dbManager.handleMessage);
-// listManager = ListManager(permissionManager.registerDelegate, dbManager.registerDelegate, connection);
-// listController = ListController(permissionManager.registerDelegate, dbManager.registerDelegate, connection);
-// userManager = UserManager(permissionManager.registerDelegate, dbManager.registerDelegate, connection);
 
+var floorPlanManager = floorPlanManagerModule(dbConnection);
+var projectManager = projectManagerModule(dbConnection);
 
 console.log(floorPlanManager);
 console.log(thumbnailGenerator);
@@ -49,19 +53,48 @@ socketIO.sockets.on('connection', function(socket) {
     var delivery = dl.listen(socket);
 
     socket.on('event', function(data) {
-      console.log('event received');
-      console.log(data);
+        console.log('event received');
+        console.log(data);
 
         var dataObj = data.data;
         switch(data.eventType) {
+            case 'loadProject':
+                var projectName = dataObj.projectName;
+                projectManager.loadProject(projectName, function(floorPlanIds) {
+
+                    socket.emit('event', {
+                        eventType: 'projectLoaded',
+                        projectName: projectName
+                    });
+
+                    floorPlanIds.forEach(function(floorPlanId) {
+                        floorPlanManager.getFloorPlan(floorPlanId, function(loadedFloorPlan) {
+                            console.log('loadedFloorPlan');
+                            console.log(loadedFloorPlan);
+                            socket.emit('event', {
+                                eventType: 'floorPlanCreated',
+                                data: loadedFloorPlan
+                            });
+                        });
+                    });
+                });
+                break;
             case 'createFloorPlan':
-                var displayName = dataObj.displayName;
+                var createFloorPlanObj = {
+                    displayName: dataObj.displayName,
+                    fileName: dataObj.fileName
+                };
 
-                var newFloorPlan = floorPlanManager.createNewFloorPlan(displayName);
+                floorPlanManager.createNewFloorPlan(createFloorPlanObj, function(createdFloorPlan) {
+                    console.log('createdFloorPlan');
+                    console.log(createdFloorPlan);
 
-                socket.emit('event', {
-                    eventType: 'floorPlanCreated',
-                    data: newFloorPlan
+                    projectManager.addFloorPlanToProject(createdFloorPlan.floorPlanId, function() {
+                        socket.emit('event', {
+                            eventType: 'floorPlanCreated',
+                            data: createdFloorPlan
+                        }); 
+                    });
                 });
                 break;
 
@@ -69,21 +102,22 @@ socketIO.sockets.on('connection', function(socket) {
                 var floorPlanId = dataObj.floorPlanId;
                 var filePath = dataObj.fileName;
 
-                //TODO: change file index to something more robust
-                var fileIdx = floorPlanManager.addFile(floorPlanId, filePath);
-                var fileObj = floorPlanManager.getFile(floorPlanId, fileIdx);
-
-                console.log(fileObj)
-                thumbnailGenerator.generateThumbnailsForFile(fileObj, function(generatedThumbnailsObj) {
+                thumbnailGenerator.generateThumbnailsForFile(filePath, function(generatedThumbnailsObj) {
                     console.log('generatedThumbnailsObj', generatedThumbnailsObj);
-                    var updatedFiles = floorPlanManager.setThumbnails(floorPlanId, fileIdx, generatedThumbnailsObj);
 
-                    socket.emit('event', {
+                    var fileObj = generatedThumbnailsObj;
+                    fileObj.main = filePath;
+
+                    floorPlanManager.setFiles(floorPlanId, fileObj, function(updatedFiles) {
+                        console.log('updatedFiles');
+                        console.log(updatedFiles);
+                        socket.emit('event', {
                         eventType: 'thumbnailsGenerated',
-                        data: {
-                            floorPlanId: floorPlanId,
-                            files: updatedFiles
-                        }
+                            data: {
+                                floorPlanId: floorPlanId,
+                                files: updatedFiles
+                            }
+                        });
                     });
                 });
                 break;
@@ -111,23 +145,6 @@ server.on('connection', function(stream){
   console.log("server connected :)");
 });
 
-//app.set('view engine', 'ejs');
-
-
-app.post('/floorPlan', function (req, res) {
-
-  console.log(req);
-  console.log(req.files);
-
-  // //start the chain
-  //pipelineEmitter.emit('init.done');
-
-  // permissionManager.handleMessage(message, function(ret){
-  //   var send = JSON.stringify(ret);
-  //   console.log('send:', send);
-  //   res.send(send);
-  // }); 
-});
 
 server.listen(8888, function() {
     console.log('listening on localhost:8888');

@@ -5,7 +5,8 @@
 
         //TODO: make into setting
         FLOORPLAN_FILES_PATH = 'floorPlanFiles/',
-        THUMBNAIL_PATH = FLOORPLAN_FILES_PATH + 'thumbnails/';
+        THUMBNAIL_FILES_PATH = 'thumbnails/',
+        THUMBNAIL_PATH = FLOORPLAN_FILES_PATH + THUMBNAIL_FILES_PATH;
 
     function init() {
         pipeLineEventChannel = pipeLineEvents;
@@ -19,15 +20,12 @@
         });
     }
 
-    function generateThumbnailsForFile(fileObj, cb) {
-        console.log('filePath: ' + fileObj.url);
-        var filePath = FLOORPLAN_FILES_PATH + fileObj.url;
-        var thumbnailPath = THUMBNAIL_PATH + fileObj.url;
-
+    function generateThumbnailsForFile(filePath, cb) {
+        console.log('filePath: ' + filePath);
 
         im.resize({
-          srcPath: filePath,
-          dstPath: thumbnailPath,
+          srcPath: FLOORPLAN_FILES_PATH + filePath,
+          dstPath: THUMBNAIL_PATH + filePath,
           quality: 0.8,
           format: 'png',
           width: 100,
@@ -36,7 +34,7 @@
           if (err) throw err;
             console.log('generated thumbnail100');
             cb({
-                thumbnail100: 'thumbnails/' + fileObj.url
+                thumbnail100: THUMBNAIL_FILES_PATH + filePath
             });
         });
     }

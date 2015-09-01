@@ -8,10 +8,28 @@ import io from 'socket.io-client';
 console.log('Delivery');
 console.log(Delivery, window.Delivery, io);
 
+
+function getFileName(path) {
+    var pathSections = path.split(/\/|\\/);
+    var nameWithExtension = pathSections[pathSections.length - 1];
+
+    var fileName = '';
+    if (~nameWithExtension.indexOf('.')) {
+        fileName = nameWithExtension.substr(0, nameWithExtension.lastIndexOf('.'));
+    } else {
+        fileName = nameWithExtension;
+    }
+
+    return fileName;
+}
+
 @inject(ObserverLocator)
 export class App {
 
     displayName = '';
+    userSelectedFile = void(0);
+    projectLoaded = false;
+
     newFloorPlan = '';
     createFloorPlanMessages = [];
     floorPlansMap = new Map();
@@ -38,27 +56,52 @@ export class App {
 
                 $("#send").click( evt => {
                     console.log('this', this);
-                    
+
                     this.createFloorPlanMessages.push('Creating new floor plan [' + this.displayName + '] ...');
+
+                    this.userSelectedFile = $(this.floorPlanFile)[0].files[0];
+                    var fileName = this.userSelectedFile.name;
+                    var displayName = this.displayName;
+
+                    $(this.floorPlanFile).val('');
+                    this.displayName = '';
+
                     socket.emit('event', {
                         eventType: 'createFloorPlan',
                         data: {
-                            displayName: this.displayName
+                            displayName: displayName,
+                            fileName: fileName
                         }
                     });
 
                     evt.preventDefault();
                 });
 
+                $("#loadProject").click(evt => {
+                    var projectName = $(this.projectName).val();
+                    console.log('projectName', projectName);
+
+                    this.floorPlansMap.clear();
+                    this.createFloorPlanMessages = [];
+
+                    socket.emit('event', {
+                        eventType: 'loadProject',
+                        data: {
+                            projectName: projectName
+                        }
+                    });
+                });
+
             });
          
             delivery.on('send.success', fileUID => {
                 console.log("file was successfully sent.", fileUID);
-                this.createFloorPlanMessages.push('File successfully uploaded.');
-                this.createFloorPlanMessages.push('Generating thumbnails...');
+                this.createFloorPlanMessages.push('File [' + fileUID.name + '] successfully uploaded.');
+                this.createFloorPlanMessages.push('Generating thumbnails for [' + fileUID.name + ']...');
 
                 var floorPlanIdForFile = this.loadingFloorPlanFiles.get(fileUID.uid);
                 this.loadingFloorPlanFiles.delete(fileUID.uid);
+
                 console.log('floorPlanIdForFile', this.loadingFloorPlanFiles, floorPlanIdForFile, fileUID.name, fileUID.uid);
               
                 socket.emit('event', {
@@ -76,6 +119,9 @@ export class App {
             var dataObj = data.data;
 
             switch(data.eventType) {
+                case 'projectLoaded':
+                    this.projectLoaded = true;
+                    break;
                 case 'thumbnailsGenerated':
                     //add files and thumbnail file urls to floorPlan
                     this.createFloorPlanMessages.push('Thumbnails generated.');
@@ -83,18 +129,24 @@ export class App {
                     break;
                 case 'floorPlanCreated':
                     console.log(dataObj, data);
+
                     this.floorPlansMap.set(dataObj.floorPlanId, dataObj);
 
-                    var file = $(this.floorPlanFile)[0].files[0];
-                    console.log('file', file);
+                    var file = this.userSelectedFile;
+                    console.log('file', this.file);
 
-                    this.createFloorPlanMessages.push('Floor plan [' + dataObj.displayName + '] created.');
-                    this.createFloorPlanMessages.push('Uploading file [' + file.name + '] to server...');
+                    if (file) {
+                        this.createFloorPlanMessages.push('Floor plan [' + dataObj.displayName + '] created.');
+                        
+                        this.createFloorPlanMessages.push('Uploading file [' + file.name + '] to server...');
 
-                    var loadingFileUID = delivery.send(file);
-                    console.log('loadingFileUID', loadingFileUID, dataObj.floorPlanId);
+                        var loadingFileUID = delivery.send(file);
+                        console.log('loadingFileUID', loadingFileUID, dataObj.floorPlanId);
 
-                    this.loadingFloorPlanFiles.set(loadingFileUID, dataObj.floorPlanId);
+                        this.loadingFloorPlanFiles.set(loadingFileUID, dataObj.floorPlanId);
+
+                        this.userSelectedFile = void(0);
+                    }
                     break;
             }
         });
@@ -102,15 +154,8 @@ export class App {
 
     floorPlanFileValueChanged(newValue) {
         console.log('floorPlanFileValueChanged', newValue);
-        var pathSections = newValue.split(/\/|\\/);
-        var nameWithExtension = pathSections[pathSections.length - 1];
 
-        var fileName = '';
-        if (~nameWithExtension.indexOf('.')) {
-            fileName = nameWithExtension.substr(0, nameWithExtension.lastIndexOf('.'));
-        } else {
-            fileName = nameWithExtension;
-        }
+        var fileName = getFileName(newValue);
         this.displayName = this.displayName !== '' ? this.displayName : fileName;
     }
 }
