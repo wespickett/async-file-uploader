@@ -32,8 +32,6 @@ dbConnection.connect();
 var floorPlanManager = floorPlanManagerModule(dbConnection);
 var projectManager = projectManagerModule(dbConnection);
 
-console.log(floorPlanManager);
-console.log(thumbnailGenerator);
 
 app.all('/', function(req, res, next) {
   res.header("Access-Control-Allow-Origin", "*");
@@ -69,8 +67,6 @@ socketIO.sockets.on('connection', function(socket) {
 
                     floorPlanIds.forEach(function(floorPlanId) {
                         floorPlanManager.getFloorPlan(floorPlanId, function(loadedFloorPlan) {
-                            console.log('loadedFloorPlan');
-                            console.log(loadedFloorPlan);
                             socket.emit('event', {
                                 eventType: 'floorPlanCreated',
                                 data: loadedFloorPlan
@@ -86,8 +82,6 @@ socketIO.sockets.on('connection', function(socket) {
                 };
 
                 floorPlanManager.createNewFloorPlan(createFloorPlanObj, function(createdFloorPlan) {
-                    console.log('createdFloorPlan');
-                    console.log(createdFloorPlan);
 
                     projectManager.addFloorPlanToProject(createdFloorPlan.floorPlanId, function() {
                         socket.emit('event', {
@@ -103,14 +97,12 @@ socketIO.sockets.on('connection', function(socket) {
                 var filePath = dataObj.fileName;
 
                 thumbnailGenerator.generateThumbnailsForFile(filePath, function(generatedThumbnailsObj) {
-                    console.log('generatedThumbnailsObj', generatedThumbnailsObj);
 
                     var fileObj = generatedThumbnailsObj;
                     fileObj.main = filePath;
 
                     floorPlanManager.setFiles(floorPlanId, fileObj, function(updatedFiles) {
-                        console.log('updatedFiles');
-                        console.log(updatedFiles);
+
                         socket.emit('event', {
                         eventType: 'thumbnailsGenerated',
                             data: {
@@ -125,7 +117,6 @@ socketIO.sockets.on('connection', function(socket) {
     });
 
     delivery.on('receive.success',function(file){
-        console.log('receive.success', file.name);
 
         var fileName = FLOORPLAN_FILES_PATH + file.name;
 
